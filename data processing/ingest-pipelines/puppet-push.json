@@ -1,0 +1,101 @@
+//PUT _ingest/pipeline/puppet-push
+{
+    "description": "Main Pipeline for parsing puppet_push logs",
+    // "message":"2022-11-29T11:31:46.488280+00:00 uk-puppetstage-1 puppet-push[27666][sangirekula]: --------------------------------------------"
+    // "message":"2022-11-29T11:31:46.492071+00:00 uk-puppetstage-1 puppet-push[27666][sangirekula]: ZA: /etc/puppet/modules/mimecast_sea_star_server_toolkit/files/caps/ingestion-management/ZA/caps-override.json  DIFF:"
+    // "message":"2022-11-29T11:31:46.511451+00:00 uk-puppetstage-1 puppet-push[27666][sangirekula]: Promoting /etc/puppet/modules/mimecast_sea_star_server_toolkit/files/caps/ingestion-management/ZA/caps-override.json  to za-puppet-2.za.mimecast.lan"
+    // "message":"2022-11-29T11:31:46.496044+00:00 uk-puppetstage-1 puppet-push[27666][sangirekula]:"
+  "processors": [
+    {
+        "set": {
+        "field": "ecs.version",
+        "value": "8.5.0"
+      }
+    },
+    {
+      "drop": {
+        "if": "!ctx?.message?.contains(\"Promoting\")"
+      }
+    },
+    {
+      "dissect": {
+        "field": "message",
+        "pattern": "%{time} %{host.name} %{process.name}[%{process.id}][%{user.name}]: %{event.action} %{pushed_file_path}  to %{destination}"
+      }
+    },
+    {
+      "date": {
+        "field": "time",
+        "formats": [
+          "yyyy-MM-dd HH:mm:ss",
+          "yyyy-MM-dd HH:mm:ss.SSSZ",
+          "yyyy-MM-dd HH:mm:ss z",
+          "ISO8601"
+        ],
+        "target_field": "@timestamp"
+      }
+    },
+    {
+      "set": {
+        "field": "event.dataset",
+        "value": "puppet_push.log",
+        "override": false
+      }
+    },
+    {
+      "append": {
+        "field": "event.category",
+        "value": [
+          "application"
+        ]
+      }
+    },
+    {
+      "set": {
+        "field": "tags",
+        "value": "puppet_push"
+      }
+    },
+    {
+      "set": {
+        "field": "event.ingested",
+        "value": "{{_ingest.timestamp}}"
+      }
+    },
+    {
+      "set": {
+        "field": "event.created",
+        "value": "{{@timestamp}}"
+      }
+    },
+    {
+      "append": {
+        "field": "event.kind",
+        "value": [
+          "event"
+        ]
+      }
+    },
+    {
+      "pipeline": {
+        "name": "logs-puppet_push.log@custom",
+        "ignore_failure": true
+      }
+    },
+    {
+      "remove": {
+        "field": "time"
+      }
+    }
+  ],
+  "on_failure": [
+    {
+      "append": {
+        "field": "error.message",
+        "value": [
+          "{{ _ingest.on_failure_message}}"
+        ]
+      }
+    }
+  ]
+}
